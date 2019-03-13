@@ -1,5 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from cycler import cycler
+
+c = plt.get_cmap('viridis').colors[::-1][40::35]
+plt.rcParams['axes.prop_cycle'] = cycler(color=c)
 
 
 class Env:
@@ -48,10 +52,11 @@ class Agent:
 def plot(noption, agent, env):
 
     fig = plt.figure(figsize=(15, 12))
+    color = [f"C{i}" for i in range(noption)]
 
     ax = fig.add_subplot(211)
     for i in range(noption):
-        ax.plot(agent.mu[i, :], label=f'option {i}')
+        ax.plot(agent.mu[i, :], label=f'option {i}', lw=2.5)
     ax.legend()
     ax.spines['right'].set_visible(0)
     ax.spines['top'].set_visible(0)
@@ -62,7 +67,7 @@ def plot(noption, agent, env):
     count = np.zeros(noption)
     for i in range(noption):
         count[i] = sum(agent.choice == i)
-    ax.bar(np.arange(noption), count)
+    ax.bar(np.arange(noption), count, color=color)
     ax.spines['right'].set_visible(0)
     ax.spines['top'].set_visible(0)
     ax.set_xlabel('trials')
@@ -70,7 +75,7 @@ def plot(noption, agent, env):
     ax.set_ylabel('N time chosen')
 
     ax = fig.add_subplot(224)
-    ax.bar(np.arange(noption), env.p)
+    ax.bar(np.arange(noption), env.p, color=color)
     ax.spines['right'].set_visible(0)
     ax.spines['top'].set_visible(0)
     ax.set_xlabel('trials')
