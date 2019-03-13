@@ -1,0 +1,106 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+class Env:
+    def __init__(self, lb, ub, noption):
+        # p of each machine
+        self.p = np.linspace(lb, ub, noption)
+        # shuffle
+        np.random.shuffle(self.p)
+
+    def play(self, idx):
+        # for convenience we only use -1 and + 1 rewards
+        return np.random.choice((-1, 1), p=[1-self.p[idx], self.p[idx]])
+
+
+class Agent:
+    def __init__(self, noption, tmax, kg0, mu0, v0, sig_xi, sig_eps, beta):
+        # Parameters
+        # Kalman gain, could be considered as a 'learning rate'
+        self.noption = noption
+        self.kg = np.ones((noption, tmax)) * kg0
+        # mean of reward pdf
+        self.mu = np.ones((noption, tmax)) * mu0
+        # variance
+        self.v = np.ones((noption, tmax)) * v0
+        self.sig_xi = sig_xi
+        self.sig_eps = sig_eps
+        self.beta = beta
+        # Data to store
+        self.choice = np.zeros(tmax, dtype=int)
+        self.reward = np.zeros(tmax, dtype=int)
+
+    def softmax(self, t):
+        return np.exp(self.beta*self.mu[:, t])/sum(np.exp(self.beta*self.mu[:, t]))
+
+    def make_choice(self, t):
+        return np.random.choice(np.arange(self.noption), p=self.softmax(t))
+
+    def update_pdf(self, idx, t, reward):
+        self.mu[idx, t+1:] = self.mu[idx, t] + self.kg[idx, t+1] * (reward - self.mu[idx, t])
+        self.v[idx, t+1:] = (1-self.kg[idx, t+1]) * (self.v[idx, t] + self.sig_xi)
+
+    def update_kg(self, idx, t):
+        self.kg[idx, t+1:] = (self.v[idx, t] + self.sig_xi)/(self.v[idx, t] + self.sig_xi + self.sig_eps)
+
+
+def plot(noption, agent, env):
+
+    fig = plt.figure(figsize=(15, 12))
+
+    ax = fig.add_subplot(211)
+    for i in range(noption):
+        ax.plot(agent.mu[i, :], label=f'option {i}')
+    ax.legend()
+    ax.spines['right'].set_visible(0)
+    ax.spines['top'].set_visible(0)
+    ax.set_xlabel('trials')
+    ax.set_ylabel('$\\mu$')
+
+    ax = fig.add_subplot(223)
+    count = np.zeros(noption)
+    for i in range(noption):
+        count[i] = sum(agent.choice == i)
+    ax.bar(np.arange(noption), count)
+    ax.spines['right'].set_visible(0)
+    ax.spines['top'].set_visible(0)
+    ax.set_xlabel('trials')
+    ax.set_xlabel('options')
+    ax.set_ylabel('N time chosen')
+
+    ax = fig.add_subplot(224)
+    ax.bar(np.arange(noption), env.p)
+    ax.spines['right'].set_visible(0)
+    ax.spines['top'].set_visible(0)
+    ax.set_xlabel('trials')
+    ax.set_xlabel('options')
+    ax.set_ylabel('$P(R=1)$')
+
+    plt.show()
+
+
+def main():
+
+    noption = 5
+    tmax = 100
+
+    env = Env(lb=.01, ub=0.95, noption=noption)
+    agent = Agent(noption=noption, tmax=tmax, kg0=0, mu0=0, v0=0.5,
+                  sig_eps=0.5, sig_xi=0.5, beta=1)
+
+    # Run
+    for t in range(tmax - 1):
+        c = agent.make_choice(t)
+        reward = env.play(c)
+        agent.update_kg(c, t)
+        agent.update_pdf(c, t, reward)
+        agent.reward[t] = reward
+        agent.choice[t] = c
+
+    # plot
+    plot(noption=noption, env=env, agent=agent)
+
+
+if __name__ == '__main__':
+    main()
