@@ -56,7 +56,7 @@ def plot(noption, agent, env):
 
     ax = fig.add_subplot(211)
     for i in range(noption):
-        ax.plot(agent.mu[i, :], label=f'option {i}', lw=2.5)
+        ax.plot(agent.mu[i, :], label=f'option {i}', lw=1.5)
     ax.legend()
     ax.spines['right'].set_visible(0)
     ax.spines['top'].set_visible(0)
