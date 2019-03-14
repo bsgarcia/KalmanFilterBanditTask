@@ -6,9 +6,9 @@ c = plt.get_cmap('viridis').colors[::-1][40::35]
 plt.rcParams['axes.prop_cycle'] = cycler(color=c)
 
 
-class Env:
+class Environment:
     def __init__(self, lb, ub, noption):
-        # p of each machine
+        # p of each option
         self.p = np.linspace(lb, ub, noption)
         np.random.shuffle(self.p)
 
@@ -38,16 +38,39 @@ class Agent:
         self.reward = np.zeros(tmax, dtype=int)
 
     def softmax(self, t):
+        """
+        use prior means in order to compute a options's probability
+        :param t:
+        :return:
+        """
         return np.exp(self.beta * self.mu[:, t]) / sum(np.exp(self.beta * self.mu[:, t]))
 
     def make_choice(self, t):
+        """
+        returns a choice based on softmax output
+        :param t:
+        :return:
+        """
         return np.random.choice(range(self.noption), p=self.softmax(t))
 
     def update_pdf(self, idx, t, reward):
+        """
+        computes posterior mean and variance
+        :param idx:
+        :param t:
+        :param reward:
+        :return:
+        """
         self.mu[idx, t+1:] = self.mu[idx, t] + self.kg[idx, t+1] * (reward - self.mu[idx, t])
         self.v[idx, t+1:] = (1 - self.kg[idx, t+1]) * (self.v[idx, t] + self.sig_xi)
 
     def update_kg(self, idx, t):
+        """
+        updates the Kalman gain
+        :param idx:
+        :param t:
+        :return:
+        """
         self.kg[idx, t+1:] = (self.v[idx, t] + self.sig_xi) / (self.v[idx, t] + self.sig_xi + self.sig_eps)
 
 
@@ -92,7 +115,7 @@ def main():
     noption = 5
     tmax = 100
 
-    env = Env(lb=.01, ub=0.95, noption=noption)
+    env = Environment(lb=.01, ub=0.95, noption=noption)
     agent = Agent(noption=noption, tmax=tmax, kg0=0, mu0=0, v0=0,
                   sig_eps=0.5, sig_xi=0.5, beta=1)
 
