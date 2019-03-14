@@ -21,7 +21,7 @@ class Agent:
     def __init__(self, noption, tmax, kg0, mu0, v0, sig_xi, sig_eps, beta):
         # Parameters
         self.noption = noption
-        # Kalman gain, could be considered as a 'learning rate'
+        # Kalman gain, could be considered as a dynamic 'learning rate'
         self.kg = np.ones((noption, tmax)) * kg0
         # mean of reward pdf
         self.mu = np.ones((noption, tmax)) * mu0
