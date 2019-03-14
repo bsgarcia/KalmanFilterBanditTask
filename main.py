@@ -31,6 +31,7 @@ class Agent:
         self.sig_xi = sig_xi
         # noise variance
         self.sig_eps = sig_eps
+        # stochasticity
         self.beta = beta
         # Data to store
         self.choice = np.zeros(tmax, dtype=int)
@@ -100,6 +101,7 @@ def main():
         choice = agent.make_choice(t)
         reward = env.play(choice)
 
+        # only update if there's a new turn
         if t < tmax - 1:
             agent.update_kg(choice, t)
             agent.update_pdf(choice, t, reward)
