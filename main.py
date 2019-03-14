@@ -88,7 +88,7 @@ def plot(noption, agent, env):
 
 def main():
 
-    noption = 3
+    noption = 5
     tmax = 100
 
     env = Env(lb=.01, ub=0.95, noption=noption)
