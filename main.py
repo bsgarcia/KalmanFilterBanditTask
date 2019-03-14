@@ -10,7 +10,6 @@ class Env:
     def __init__(self, lb, ub, noption):
         # p of each machine
         self.p = np.linspace(lb, ub, noption)
-        # shuffle
         np.random.shuffle(self.p)
 
     def play(self, idx):
@@ -21,14 +20,16 @@ class Env:
 class Agent:
     def __init__(self, noption, tmax, kg0, mu0, v0, sig_xi, sig_eps, beta):
         # Parameters
-        # Kalman gain, could be considered as a 'learning rate'
         self.noption = noption
+        # Kalman gain, could be considered as a 'learning rate'
         self.kg = np.ones((noption, tmax)) * kg0
         # mean of reward pdf
         self.mu = np.ones((noption, tmax)) * mu0
         # variance
         self.v = np.ones((noption, tmax)) * v0
+        # innovation variance
         self.sig_xi = sig_xi
+        # noise variance
         self.sig_eps = sig_eps
         self.beta = beta
         # Data to store
@@ -36,17 +37,17 @@ class Agent:
         self.reward = np.zeros(tmax, dtype=int)
 
     def softmax(self, t):
-        return np.exp(self.beta*self.mu[:, t])/sum(np.exp(self.beta*self.mu[:, t]))
+        return np.exp(self.beta * self.mu[:, t]) / sum(np.exp(self.beta * self.mu[:, t]))
 
     def make_choice(self, t):
-        return np.random.choice(np.arange(self.noption), p=self.softmax(t))
+        return np.random.choice(range(self.noption), p=self.softmax(t))
 
     def update_pdf(self, idx, t, reward):
         self.mu[idx, t+1:] = self.mu[idx, t] + self.kg[idx, t+1] * (reward - self.mu[idx, t])
-        self.v[idx, t+1:] = (1-self.kg[idx, t+1]) * (self.v[idx, t] + self.sig_xi)
+        self.v[idx, t+1:] = (1 - self.kg[idx, t+1]) * (self.v[idx, t] + self.sig_xi)
 
     def update_kg(self, idx, t):
-        self.kg[idx, t+1:] = (self.v[idx, t] + self.sig_xi)/(self.v[idx, t] + self.sig_xi + self.sig_eps)
+        self.kg[idx, t+1:] = (self.v[idx, t] + self.sig_xi) / (self.v[idx, t] + self.sig_xi + self.sig_eps)
 
 
 def plot(noption, agent, env):
@@ -87,21 +88,23 @@ def plot(noption, agent, env):
 
 def main():
 
-    noption = 5
+    noption = 3
     tmax = 100
 
     env = Env(lb=.01, ub=0.95, noption=noption)
-    agent = Agent(noption=noption, tmax=tmax, kg0=0, mu0=0, v0=0.5,
+    agent = Agent(noption=noption, tmax=tmax, kg0=0, mu0=0, v0=0,
                   sig_eps=0.5, sig_xi=0.5, beta=1)
 
     # Run
-    for t in range(tmax - 1):
-        c = agent.make_choice(t)
-        reward = env.play(c)
-        agent.update_kg(c, t)
-        agent.update_pdf(c, t, reward)
-        agent.reward[t] = reward
-        agent.choice[t] = c
+    for t in range(tmax):
+        choice = agent.make_choice(t)
+        reward = env.play(choice)
+
+        if t < tmax - 1:
+            agent.update_kg(choice, t)
+            agent.update_pdf(choice, t, reward)
+            agent.reward[t] = reward
+            agent.choice[t] = choice
 
     # plot
     plot(noption=noption, env=env, agent=agent)
