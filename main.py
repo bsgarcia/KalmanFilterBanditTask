@@ -39,7 +39,7 @@ class Agent:
 
     def softmax(self, t):
         """
-        use prior means in order to compute a options's probability
+        use prior means in order to compute options' probabilities
         :param t:
         :return:
         """
