@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import argparse
 from cycler import cycler
 import scipy.stats
 import fit
@@ -216,5 +217,16 @@ def main(force=False):
 
 
 if __name__ == '__main__':
+    import os
 
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--force", action="store_true",
+                        help="force optimization")
+    args = parser.parse_args()
+
+    is_running_in_pycharm = "PYCHARM_HOSTED" in os.environ
+
+    if is_running_in_pycharm:
+        parser.print_help()
+
+    main(force=args.force)
