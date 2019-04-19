@@ -39,6 +39,8 @@ def optimize():
         'MaxFunEval': 20000
     }
 
+    print('Optimizing parameters...')
+
     [sig_eps, sig_xi, beta1], ll1, exitflag1 = pyfmincon.opt.fmincon(
         'fit.run_optimization',
         x0=[0, 0, 1],
@@ -60,10 +62,11 @@ def optimize():
 
 def run_optimization(args, noption=5, tmax=1000):
 
-    env = Environment(lb=.01, ub=0.95, noption=noption)
+    env = Environment(lb=.01, ub=0.95, noption=noption, tmax=tmax)
 
     if len(args) == 3:
         agent = KalmanAgent(
+            ncontext=env.ncontext,
             noption=noption,
             tmax=tmax,
             kg0=0,
@@ -75,6 +78,7 @@ def run_optimization(args, noption=5, tmax=1000):
         )
     else:
         agent = QLearningAgent(
+            ncontext=env.ncontext,
             noption=noption,
             tmax=tmax,
             q0=0,
@@ -83,13 +87,23 @@ def run_optimization(args, noption=5, tmax=1000):
         )
 
     for t in range(tmax):
-        choice = agent.make_choice()
-        reward = env.play(choice)
+
+        s = env.con[t]
+        a = agent.make_choice(s)
+        r = env.play(s, a)
 
         # only update if there's a new turn
         if t < tmax - 1:
-            agent.learn(choice, reward)
-            agent.remember(reward=reward, choice=choice, t=t)
+            agent.learn(
+                s=s,
+                a=a,
+                r=r
+            )
+
+            agent.remember(
+                r=r,
+                t=t
+            )
 
     return agent.regret[-1]
 

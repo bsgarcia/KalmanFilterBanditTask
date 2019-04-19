@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import argparse
 from cycler import cycler
 import scipy.stats
+import itertools as it
 import fit
 
 c = plt.get_cmap('viridis').colors[::-1][40::35]
@@ -10,14 +11,20 @@ plt.rcParams['axes.prop_cycle'] = cycler(color=c)
 
 
 class Environment:
-    def __init__(self, lb, ub, noption):
+    def __init__(self, lb, ub, noption, tmax):
         # p of each option
         self.p = np.linspace(lb, ub, noption)
-        #np.random.shuffle(self.p)
+        np.random.shuffle(self.p)
+        self.pair = list(it.permutations(range(noption), 2))
+        self.ncontext = len(self.pair)
+        self.con = np.repeat(range(len(self.pair)), tmax)
 
-    def play(self, idx):
+    def play(self, s, a):
         # for convenience we only use -1 and + 1 rewards
-        return np.random.choice((-1, 1), p=[1 - self.p[idx], self.p[idx]])
+        return np.random.choice(
+            (-1, 1),
+            p=[1 - self.p[self.pair[s][a]], self.p[self.pair[s][a]]]
+        )
 
 
 class Agent:
@@ -27,56 +34,55 @@ class Agent:
     """
 
     def __init__(self, *args, **kwargs):
-        self.noption = kwargs['noption']
+        self.noption = 2
         self.tmax = kwargs['tmax']
 
         self.beta = kwargs['beta']
-        self.value = np.zeros((kwargs['noption'], kwargs['tmax']))
+        self.value = np.zeros((kwargs['ncontext'], self.noption))
 
         # Data to store
-        self.choice = np.zeros(kwargs['tmax'], dtype=int)
         self.reward = np.zeros(kwargs['tmax'], dtype=int)
         self.regret = np.zeros(kwargs['tmax'], dtype=int)
 
-    def make_choice(self):
+    def make_choice(self, s):
         """
         returns a choice based on softmax output
         :return:
         """
-        return np.random.choice(range(self.noption), p=self.softmax())
+        return np.random.choice(range(self.noption), p=self.softmax(s))
 
-    def softmax(self):
+    def softmax(self, s):
         """
         use prior means/ qvalues in order to compute options' probabilities
         :return:
         """
         return np.exp(
-            self.beta * self.value[:] + 1e-20
-            ) / sum(np.exp(self.beta * self.value[:] + 1e-20))
+            self.beta * self.value[s, :] + 1e-20
+            ) / sum(np.exp(self.beta * self.value[s, :] + 1e-20))
 
     def learn(self, *args, **kwargs):
         raise NotImplementedError
 
-    def remember(self, reward, choice, t):
-        self.reward[t] = reward
-        self.choice[t] = choice
-        self.regret[t + 1] = self.regret[t] + (1 - reward)
+    def remember(self, r, t):
+        self.reward[t] = r
+        self.regret[t + 1] = self.regret[t] + (1 - r)
 
 
 class QLearningAgent(Agent):
     def __init__(self, alpha, q0, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.alpha = alpha
-        self.q = np.ones(kwargs['noption']) * q0
+        self.q = np.ones((kwargs['ncontext'], self.noption)) * q0
         self.value = self.q
 
-    def learn(self, idx, reward):
+    def learn(self, s, a, r):
         """
-        :param idx:
-        :param reward:
+        :param s:
+        :param a:
+        :param r:
         :return:
         """
-        self.q[idx] = self.q[idx] + self.alpha * (reward - self.q[idx])
+        self.q[s, a] += self.alpha * (r - self.q[s, a])
 
 
 class KalmanAgent(Agent):
@@ -84,12 +90,12 @@ class KalmanAgent(Agent):
         super().__init__(*args, **kwargs)
         # Parameters
         # Kalman gain, could be considered as a dynamic 'learning rate'
-        self.kg = np.ones(kwargs['noption']) * kg0
+        self.kg = np.ones((kwargs['ncontext'], self.noption)) * kg0
         # mean of reward pdf
-        self.mu = np.ones(kwargs['noption']) * mu0
+        self.mu = np.ones((kwargs['ncontext'], self.noption)) * mu0
         self.value = self.mu
         # variance
-        self.v = np.ones(kwargs['noption']) * v0
+        self.v = np.ones((kwargs['ncontext'], self.noption)) * v0
         # innovation variance
         self.sig_xi = sig_xi
         # noise variance
@@ -97,29 +103,31 @@ class KalmanAgent(Agent):
         # stochasticity
         self.beta = kwargs['beta']
 
-    def update_pdf(self, idx, reward):
+    def update_pdf(self, s, a, r):
         """
         computes posterior mean and variance
-        :param idx:
-        :param reward:
+        :param s:
+        :param a:
+        :param r:
         :return:
         """
-        self.mu[idx] = self.mu[idx] + self.kg[idx] * (reward - self.mu[idx])
-        self.v[idx] = (1 - self.kg[idx]) * (self.v[idx] + self.sig_xi)
+        self.mu[s, a] = self.mu[s, a] + self.kg[s, a] * (r - self.mu[s, a])
+        self.v[s, a] = (1 - self.kg[s, a]) * (self.v[s, a] + self.sig_xi)
 
-    def update_kg(self, idx):
+    def update_kg(self, s, a):
         """
         updates the Kalman gain
-        :param idx:
+        :param s: state
+        :param a: action
         :return:
         """
-        self.kg[idx] = (
-            self.v[idx] + self.sig_xi + 1e-20) / (
-                (self.v[idx] + self.sig_xi + self.sig_eps) + 1e-20)
+        self.kg[s, a] = (
+            self.v[s, a] + self.sig_xi + 1e-20) / (
+                (self.v[s, a] + self.sig_xi + self.sig_eps) + 1e-20)
 
-    def learn(self, idx, reward):
-        self.update_kg(idx)
-        self.update_pdf(idx, reward)
+    def learn(self, s, a, r):
+        self.update_kg(s, a)
+        self.update_pdf(s, a, r)
 
 
 def plot(regret, sem):
@@ -155,7 +163,7 @@ def main(force=False):
         fit.get_parameters(force=force)
 
     env = Environment(
-        lb=.01, ub=0.95, noption=noption
+        lb=.01, ub=0.95, noption=noption, tmax=tmax
     )
 
     regret = np.zeros((2, nagent, tmax))
@@ -165,6 +173,7 @@ def main(force=False):
         for n in range(nagent):
             if not i:
                 agent = KalmanAgent(
+                    ncontext=env.ncontext,
                     noption=noption,
                     tmax=tmax,
                     kg0=0,
@@ -176,6 +185,7 @@ def main(force=False):
                 )
             else:
                 agent = QLearningAgent(
+                    ncontext=env.ncontext,
                     noption=noption,
                     tmax=tmax,
                     q0=0,
@@ -184,20 +194,21 @@ def main(force=False):
                 )
 
             for t in range(tmax):
-                choice = agent.make_choice()
-                reward = env.play(choice)
+                s = env.con[t]
+                a = agent.make_choice(s)
+                r = env.play(s, a)
 
                 # only update if there's a new turn
                 if t < tmax - 1:
 
                     agent.learn(
-                        choice,
-                        reward
+                        s=s,
+                        a=a,
+                        r=r
                     )
 
                     agent.remember(
-                        reward=reward,
-                        choice=choice,
+                        r=r,
                         t=t
                     )
 
